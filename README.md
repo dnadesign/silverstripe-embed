@@ -1,7 +1,5 @@
 # Silverstripe embed
 
-[![ko-fi](https://www.ko-fi.com/img/donate_sm.png)](https://ko-fi.com/E1E5HWRR)
-
 Adds embed and video a dataobject along with dataextension to apply embed to existing objects.
 
 ## Installation
@@ -17,6 +15,7 @@ composer require gorriecoe/silverstripe-embed
 ## Maintainers
 
 - [Gorrie Coe](https://github.com/gorriecoe)
+- [DNA Design](https://www.dna.co.nz)
 
 ## Usage
 Relationship to Embed Dataobjects
