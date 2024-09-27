@@ -12,3 +12,6 @@ web.config
 .sass-cache
 prepros.cfg
 node_modules
+composer.lock
+resources/
+vendor/

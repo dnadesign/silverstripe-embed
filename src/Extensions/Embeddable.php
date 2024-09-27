@@ -106,7 +106,7 @@ class Embeddable extends DataExtension
 
         $fields->addFieldsToTab(
             'Root.' . $tab,
-            array(
+            [
                 TextField::create(
                     'EmbedTitle',
                     _t(__CLASS__ . '.TITLELABEL', 'Title')
@@ -119,7 +119,12 @@ class Embeddable extends DataExtension
                     _t(__CLASS__ . '.SOURCEURLLABEL', 'Source URL')
                 )
                     ->setDescription(
-                        _t(__CLASS__ . '.SOURCEURLDESCRIPTION', 'Specify a external URL. Format for Youtube: https://www.youtube.com/watch?v=9bZkp7q19f0 Vimeo: https://player.vimeo.com/video/226053498')
+                        _t(
+                            __CLASS__ . '.SOURCEURLDESCRIPTION',
+                            'Specify a external URL.'
+                            . ' Format for Youtube: https://www.youtube.com/watch?v=9bZkp7q19f0'
+                            . ' Vimeo: https://player.vimeo.com/video/226053498'
+                        )
                     ),
                 UploadField::create(
                     'EmbedImage',
@@ -132,7 +137,7 @@ class Embeddable extends DataExtension
                     'EmbedDescription',
                     _t(__CLASS__ . '.DESCRIPTIONLABEL', 'Description')
                 )
-            )
+            ]
         );
 
         if (isset($owner->AllowedEmbedTypes) && Count($owner->AllowedEmbedTypes) > 1) {
@@ -186,7 +191,8 @@ class Embeddable extends DataExtension
                 //     $owner->EmbedSourceImageURL = (string) $embed->image;
                 //     $fileExplode = explode('.', $embed->image);
                 //     $fileExtension = end($fileExplode);
-                //     $fileName = Convert::raw2url($owner->obj('EmbedTitle')->LimitCharacters(55)) . '.' . $fileExtension;
+                //     $pathSafeTitle = Convert::raw2url($owner->obj('EmbedTitle')->LimitCharacters(55));
+                //     $fileName = $pathSafeTitle . '.' . $fileExtension;
                 //     $parentFolder = Folder::find_or_make($owner->EmbedFolder);
 
                 //     $imageObject = DataObject::get_one(
@@ -226,11 +232,11 @@ class Embeddable extends DataExtension
     }
 
     /**
-     * @return array()|null
+     * @return array
      */
-    public function getAllowedEmbedTypes()
+    public function getAllowedEmbedTypes(): array
     {
-        return $this->owner->config()->get('allowed_embed_types');
+        return $this->owner->config()->get('allowed_embed_types') ?? [];
     }
 
     // TODO: This doesn't work with latest embed/embed
@@ -359,7 +365,8 @@ class Embeddable extends DataExtension
      * @param string $sourceURL The source URL of the embed.
      * @return string Modified embed HTML.
      */
-    protected function addReferrerPolicyForVimeo($html, $sourceURL) {
+    protected function addReferrerPolicyForVimeo($html, $sourceURL)
+    {
         if (strpos($sourceURL, 'vimeo.com') !== false) {
             return str_replace('<iframe ', '<iframe referrerpolicy="strict-origin" ', $html);
         }

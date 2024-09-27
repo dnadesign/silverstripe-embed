@@ -36,20 +36,20 @@ class Embed extends DataObject
      * as a quick overview of the data for this dataobject
      * @var array
      */
-    private static $summary_fields = array(
+    private static $summary_fields = [
         'EmbedTitle' => 'Title',
         'EmbedType' => 'Type',
         'EmbedSourceURL' => 'URL'
-    );
+    ];
 
     /**
      * Defines extension names and parameters to be applied
      * to this object upon construction.
      * @var array
      */
-    private static $extensions = array(
+    private static $extensions = [
         Embeddable::class
-    );
+    ];
 
 
     /**
@@ -86,7 +86,7 @@ class Embed extends DataObject
     /**
      * Alias for EmbedTitle
      * This is used by CMS Title and breadcrumbs.
-     * @return String
+     * @return string
      */
     public function getTitle()
     {
@@ -96,7 +96,7 @@ class Embed extends DataObject
     /**
      * Set CSS classes for templates
      * @param string $class CSS classes.
-     * @return $this
+     * @return self
      */
     public function setClass($class)
     {
@@ -115,7 +115,7 @@ class Embed extends DataObject
 
     /**
      * Renders an HTML anchor tag for this link
-     * @return HTML
+     * @return string HTML
      */
     public function forTemplate()
     {
