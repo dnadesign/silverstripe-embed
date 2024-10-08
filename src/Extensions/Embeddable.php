@@ -3,6 +3,7 @@
 namespace gorriecoe\Embed\Extensions;
 
 use Embed\Embed;
+use gorriecoe\Embed\Service\Fetcher;
 use gorriecoe\HTMLTag\View\HTMLTag;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\File;
@@ -10,11 +11,12 @@ use SilverStripe\Assets\Folder;
 use SilverStripe\Assets\Image;
 use SilverStripe\Assets\Storage\AssetStore;
 use SilverStripe\Core\Convert;
+use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\ReadonlyField;
+use SilverStripe\Forms\RequiredFields;
 use SilverStripe\Forms\TextareaField;
 use SilverStripe\Forms\TextField;
-use SilverStripe\Forms\RequiredFields;
 use SilverStripe\ORM\DataExtension;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ValidationResult;
@@ -79,6 +81,22 @@ class Embeddable extends DataExtension
      * @var string
      */
     protected $template = 'Embed';
+
+    private ?Fetcher $fetcher = null;
+
+    public function getFetcher(): Fetcher
+    {
+        if (!$this->fetcher) {
+            $this->fetcher = Injector::inst()->get(Fetcher::class);
+        }
+        return $this->fetcher;
+    }
+
+    public function setFetcher(Fetcher $fetcher)
+    {
+        $this->fetcher = $fetcher;
+        return $this;
+    }
 
     /**
      * Update Fields
@@ -169,8 +187,7 @@ class Embeddable extends DataExtension
     {
         $owner = $this->owner;
         if ($sourceURL = $owner->EmbedSourceURL) {
-            $embed = new Embed();
-            $embed = $embed->get($sourceURL);
+            $embed = $this->getFetcher()->fetchFrom($sourceURL);
 
             if ($owner->EmbedTitle == '') {
                 $owner->EmbedTitle = $embed->title;

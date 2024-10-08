@@ -15,3 +15,5 @@ node_modules
 composer.lock
 resources/
 vendor/
+.phpunit.result.cache
+assets/

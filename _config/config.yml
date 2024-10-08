@@ -1,3 +1,5 @@
 ---
 Name: embedconfig
 ---
+SilverStripe\Core\Injector\Injector:
+  gorriecoe\Embed\Service\Fetcher: gorriecoe\Embed\Service\Fetcher\EmbedEmbed
