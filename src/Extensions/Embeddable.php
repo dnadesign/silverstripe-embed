@@ -368,6 +368,8 @@ class Embeddable extends DataExtension
                     'alt' => $title
                 ]);
                 break;
+            default:
+                return '';
         }
         return $html->setClass($class);
     }

@@ -37,4 +37,9 @@ class EmbeddableTest extends SapphireTest
         $embed->onBeforeWrite();
         $this->assertSame('Test title', $embed->EmbedTitle);
     }
+
+    public function testGetEmbedWithNoTypeDoesNotCauseAnError()
+    {
+        $this->assertSame('', (new Embed())->getEmbed());
+    }
 }
