@@ -105,8 +105,7 @@ class Embeddable extends DataExtension
     public function updateCMSFields(FieldList $fields)
     {
         $owner = $this->owner;
-        $tab = $owner->config()->get('embed_tab');
-        $tab = isset($tab) ? $tab : 'Main';
+        $tab = $owner->config()->get('embed_tab') ?? 'Main';
 
         // Ensure these fields don't get added by fields scaffold
         $fields->removeByName([
@@ -150,7 +149,12 @@ class Embeddable extends DataExtension
                 )
                     ->setFolderName($owner->EmbedFolder)
                     ->setAllowedFileCategories(['image'])
-                    ->setDescription('Upload an image to use as a thumbnail for the embed.'),
+                    ->setDescription(
+                        _t(
+                            __CLASS__ . '.IMAGEDESCRIPTION',
+                            'Upload an image to use as a thumbnail for the embed.'
+                        )
+                    ),
                 TextareaField::create(
                     'EmbedDescription',
                     _t(__CLASS__ . '.DESCRIPTIONLABEL', 'Description')
@@ -158,7 +162,11 @@ class Embeddable extends DataExtension
             ]
         );
 
-        if (isset($owner->AllowedEmbedTypes) && Count($owner->AllowedEmbedTypes) > 1) {
+        if (
+            isset($owner->AllowedEmbedTypes)
+            && is_array($owner->AllowedEmbedTypes)
+            && count($owner->AllowedEmbedTypes) > 1
+        ) {
             $fields->addFieldToTab(
                 'Root.' . $tab,
                 ReadonlyField::create(
