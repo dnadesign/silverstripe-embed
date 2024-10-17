@@ -1,6 +1,6 @@
 {
   "name": "dnadesign/silverstripe-embed",
-  "description": "Adds embed and video a dataobject along with dataextension to apply embed to existing objects.",
+  "description": "Adds Embed and Video a DataObjects along with a DataExtension to apply embed capabilities to existing objects.",
   "type": "silverstripe-vendormodule",
   "license": "BSD-3-Clause",
   "authors": [
@@ -33,5 +33,8 @@
       "gorriecoe\\Embed\\": "src/",
       "gorriecoe\\Embed\\Test\\": "tests/"
     }
+  },
+  "replace": {
+    "gorriecoe/silverstripe-embed": "*"
   }
 }

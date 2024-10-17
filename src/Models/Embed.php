@@ -51,14 +51,6 @@ class Embed extends DataObject
         Embeddable::class
     ];
 
-
-    /**
-     * List the allowed included embed types.  If null all are allowed.
-     *
-     * @var array
-     */
-    private static $allowed_embed_types = null;
-
     /**
      * Defines upload folder for embedded assets
      *

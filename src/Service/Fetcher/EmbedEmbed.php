@@ -7,8 +7,14 @@ use gorriecoe\Embed\Service\Fetcher;
 
 class EmbedEmbed implements Fetcher
 {
-    public function fetchFrom(string $url): object
+    public function fetchFrom(string $url): array
     {
-        return (new Embed())->get($url);
+        $embed = (new Embed())->get($url);
+        $oembed = $embed->getOEmbed()->all();
+        $description = $embed->description;
+        if (!empty($description)) {
+            $oembed['description'] = $description;
+        }
+        return $oembed;
     }
 }
