@@ -1,12 +1,16 @@
 {
   "name": "dnadesign/silverstripe-embed",
-  "description": "Adds embed and video a dataobject along with dataextension to apply embed to existing objects.",
+  "description": "Adds Embed and Video a DataObjects along with a DataExtension to apply embed capabilities to existing objects.",
   "type": "silverstripe-vendormodule",
   "license": "BSD-3-Clause",
   "authors": [
     {
       "name": "Gorrie Coe",
       "email": "gorriecoe@gmail.com"
+    },
+    {
+      "name": "DNA Designed Communications Limited",
+      "homepage": "https://www.dna.co.nz"
     }
   ],
   "keywords": [
@@ -16,20 +20,21 @@
   ],
   "homepage": "http://github.com/dnadesign/silverstripe-embed",
   "require": {
-    "silverstripe/framework": "^4 || ^5",
-    "gorriecoe/silverstripe-htmltag": "dev-master"
+    "silverstripe/framework": "^4.11 || ^5",
+    "gorriecoe/silverstripe-htmltag": "dev-master",
+    "embed/embed": "^4"
   },
-  "repositories": [
-    {
-      "type": "git",
-      "url": "https://github.com/dnadesign/silverstripe-embed.git"
-    },
-    {
-      "type": "git",
-      "url": "https://github.com/dnadesign/silverstripe-htmltag.git"
+  "require-dev": {
+    "phpunit/phpunit": "^9",
+    "squizlabs/php_codesniffer": "^3"
+  },
+  "autoload": {
+    "psr-4": {
+      "gorriecoe\\Embed\\": "src/",
+      "gorriecoe\\Embed\\Test\\": "tests/"
     }
-  ],
-  "extra": {
-    "installer-name": "embed"
+  },
+  "replace": {
+    "gorriecoe/silverstripe-embed": "*"
   }
 }

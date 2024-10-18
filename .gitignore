@@ -5,6 +5,7 @@ web.config
 .project
 .settings
 .idea
+.vscode
 .DS_Store
 ._.DS_Store
 .codekit
@@ -12,3 +13,8 @@ web.config
 .sass-cache
 prepros.cfg
 node_modules
+composer.lock
+resources/
+vendor/
+.phpunit.result.cache
+assets/

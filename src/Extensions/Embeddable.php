@@ -3,18 +3,19 @@
 namespace gorriecoe\Embed\Extensions;
 
 use Embed\Embed;
+use gorriecoe\Embed\Service\Fetcher;
 use gorriecoe\HTMLTag\View\HTMLTag;
+use RuntimeException;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\File;
 use SilverStripe\Assets\Folder;
 use SilverStripe\Assets\Image;
-use SilverStripe\Assets\Storage\AssetStore;
-use SilverStripe\Core\Convert;
+use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\ReadonlyField;
+use SilverStripe\Forms\RequiredFields;
 use SilverStripe\Forms\TextareaField;
 use SilverStripe\Forms\TextField;
-use SilverStripe\Forms\RequiredFields;
 use SilverStripe\ORM\DataExtension;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\ValidationResult;
@@ -63,10 +64,45 @@ class Embeddable extends DataExtension
     ];
 
     /**
-     * Defines tab to insert the embed fields into.
+     * Defines tab to insert the embed fields into in the CMS
+     *
+     * @config
      * @var string
      */
     private static $embed_tab = 'Main';
+
+    /**
+     * List the allowed included embed types. If null all are allowed.
+     *
+     * @config
+     * @var array|null
+     */
+    private static $allowed_embed_types = null;
+
+    /**
+     * Whether to not to assert the embed data is OK within the {@see validate()} method
+     * Works in tandem with allowed_embed_types
+     *
+     * @config
+     * @var boolean
+     */
+    private static $validate_embed = false;
+
+    /**
+     * Download and store either a photo or a thumbnail (depending on embed type) as a Silverstripe asset
+     *
+     * @config
+     * @var boolean
+     */
+    private static $cache_image_as_asset = false;
+
+    /**
+     * Name of the folder to store assets in
+     * @see $cache_image_as_asset
+     *
+     * @var string
+     */
+    private static $embed_folder;
 
     /**
      * List of custom CSS classes for template.
@@ -80,6 +116,24 @@ class Embeddable extends DataExtension
      */
     protected $template = 'Embed';
 
+    private ?Fetcher $fetcher = null;
+
+    private array $embedData = [];
+
+    public function getFetcher(): Fetcher
+    {
+        if (!$this->fetcher) {
+            $this->fetcher = Injector::inst()->get(Fetcher::class);
+        }
+        return $this->fetcher;
+    }
+
+    public function setFetcher(Fetcher $fetcher)
+    {
+        $this->fetcher = $fetcher;
+        return $this->owner;
+    }
+
     /**
      * Update Fields
      * @return FieldList
@@ -87,8 +141,7 @@ class Embeddable extends DataExtension
     public function updateCMSFields(FieldList $fields)
     {
         $owner = $this->owner;
-        $tab = $owner->config()->get('embed_tab');
-        $tab = isset($tab) ? $tab : 'Main';
+        $tab = $owner->config()->get('embed_tab') ?? 'Main';
 
         // Ensure these fields don't get added by fields scaffold
         $fields->removeByName([
@@ -106,7 +159,7 @@ class Embeddable extends DataExtension
 
         $fields->addFieldsToTab(
             'Root.' . $tab,
-            array(
+            [
                 TextField::create(
                     'EmbedTitle',
                     _t(__CLASS__ . '.TITLELABEL', 'Title')
@@ -119,7 +172,12 @@ class Embeddable extends DataExtension
                     _t(__CLASS__ . '.SOURCEURLLABEL', 'Source URL')
                 )
                     ->setDescription(
-                        _t(__CLASS__ . '.SOURCEURLDESCRIPTION', 'Specify a external URL. Format for Youtube: https://www.youtube.com/watch?v=9bZkp7q19f0 Vimeo: https://player.vimeo.com/video/226053498')
+                        _t(
+                            __CLASS__ . '.SOURCEURLDESCRIPTION',
+                            'Specify a external URL.'
+                            . ' Format for Youtube: https://www.youtube.com/watch?v=9bZkp7q19f0'
+                            . ' Vimeo: https://player.vimeo.com/video/226053498'
+                        )
                     ),
                 UploadField::create(
                     'EmbedImage',
@@ -127,15 +185,24 @@ class Embeddable extends DataExtension
                 )
                     ->setFolderName($owner->EmbedFolder)
                     ->setAllowedFileCategories(['image'])
-                    ->setDescription('Upload an image to use as a thumbnail for the embed.'),
+                    ->setDescription(
+                        _t(
+                            __CLASS__ . '.IMAGEDESCRIPTION',
+                            'Upload an image to use as a thumbnail for the embed.'
+                        )
+                    ),
                 TextareaField::create(
                     'EmbedDescription',
                     _t(__CLASS__ . '.DESCRIPTIONLABEL', 'Description')
                 )
-            )
+            ]
         );
 
-        if (isset($owner->AllowedEmbedTypes) && Count($owner->AllowedEmbedTypes) > 1) {
+        if (
+            isset($owner->AllowedEmbedTypes)
+            && is_array($owner->AllowedEmbedTypes)
+            && count($owner->AllowedEmbedTypes) > 1
+        ) {
             $fields->addFieldToTab(
                 'Root.' . $tab,
                 ReadonlyField::create(
@@ -163,99 +230,120 @@ class Embeddable extends DataExtension
     public function onBeforeWrite()
     {
         $owner = $this->owner;
-        if ($sourceURL = $owner->EmbedSourceURL) {
-            $embed = new Embed();
-            $embed = $embed->get($sourceURL);
 
-            if ($owner->EmbedTitle == '') {
-                $owner->EmbedTitle = $embed->title;
+        if (empty($owner->EmbedSourceURL) || !$owner->isChanged('EmbedSourceURL')) {
+            return;
+        }
+
+        $embedData = $this->fetchEmbedData();
+        if (empty($embedData)) {
+            return;
+        }
+
+        $owner->EmbedHTML = $this->addReferrerPolicyForVimeo($embedData['html'] ?? '', $owner->EmbedSourceURL);
+        unset($embedData['html']);
+        $width = (int)$embedData['width'] ?? null;
+        $height = (int)$embedData['height'] ?? null;
+        $owner->EmbedAspectRatio = ($width & $height) ? $width / $height : null;
+
+        foreach ($embedData as $name => $value) {
+            $field = 'Embed' . ucwords($name);
+            if ($owner->hasField($field)) {
+                $owner->$field = $value;
             }
-            if ($owner->EmbedDescription == '') {
-                $owner->EmbedDescription = $embed->description;
-            }
-            $changes = $owner->getChangedFields();
-            if (isset($changes['EmbedSourceURL'])) {
-                $owner->EmbedHTML = $this->addReferrerPolicyForVimeo($embed->code->html, $sourceURL);
-                $owner->EmbedType = 'video';
-                $owner->EmbedWidth = $embed->code->width;
-                $owner->EmbedHeight = $embed->code->height;
-                $owner->EmbedAspectRatio = $embed->code->ratio;
+        }
 
-                // TODO: This doesn't work. Images are too small and Vimeo returns images without a file extension
-                // if ($owner->EmbedSourceImageURL != (string) $embed->image) {
-                //     $owner->EmbedSourceImageURL = (string) $embed->image;
-                //     $fileExplode = explode('.', $embed->image);
-                //     $fileExtension = end($fileExplode);
-                //     $fileName = Convert::raw2url($owner->obj('EmbedTitle')->LimitCharacters(55)) . '.' . $fileExtension;
-                //     $parentFolder = Folder::find_or_make($owner->EmbedFolder);
+        $imageUrl = $embedData['thumbnail_url'] ?? '';
+        $titleSuffix = ' thumbnail';
 
-                //     $imageObject = DataObject::get_one(
-                //         Image::class,
-                //         [
-                //             'Name' => $fileName,
-                //             'ParentID' => $parentFolder->ID
-                //         ]
-                //     );
+        if ($embedData['type'] === 'photo' && isset($embedData['url'])) {
+            $imageUrl = $embedData['url'];
+            $titleSuffix = '';
+            $owner->EmbedSourceImageURL = $imageUrl;
+        }
 
-                //     if(!$imageObject){
-                //         // Save image to server
-                //         $imageObject = Image::create();
-                //         $imageObject->setFromString(
-                //             file_get_contents($embed->Image),
-                //             $owner->EmbedFolder . '/' . $fileName,
-                //             null,
-                //             null,
-                //             [
-                //                 'conflict' => AssetStore::CONFLICT_OVERWRITE
-                //             ]
-                //         );
-                //     }
-
-                //     // Check existing for image object or create new
-                //     $imageObject->ParentID = $parentFolder->ID;
-                //     $imageObject->Name = $fileName;
-                //     $imageObject->Title = $embed->getTitle();
-                //     $imageObject->OwnerID = (Member::currentUserID() ? Member::currentUserID() : 0);
-                //     $imageObject->ShowInSearch = false;
-                //     $imageObject->write();
-
-                //     $owner->EmbedImageID = $imageObject->ID;
-                // }
+        if ((bool)$owner->config()->get('cache_image_as_asset') && $imageUrl) {
+            $image = $owner->EmbedImage();
+            try {
+                $urlData = parse_url($imageUrl);
+                $filename = pathinfo($urlData['path'] ?? '', PATHINFO_FILENAME);
+                $imageData = $this->fetchImageData($imageUrl);
+                $fileInfo = finfo_open();
+                $mimeType = finfo_buffer($fileInfo, $imageData, FILEINFO_MIME);
+                if (explode('/', $mimeType)[0] !== 'image') {
+                    throw new RuntimeException("Image URL does not have an image mime type: $mimeType ($imageUrl)");
+                }
+                $possibleExtensions = explode('/', finfo_buffer($fileInfo, $imageData, FILEINFO_EXTENSION));
+                $extension = array_shift($possibleExtensions);
+                if ($extension === '???') {
+                    throw new RuntimeException("Image mime type does not have known extensions: $mimeType");
+                }
+                $image->update([
+                    'Name' => $filename,
+                    'Title' => $embedData['title'] . $titleSuffix,
+                ]);
+                $image->setFromString($imageData, "{$filename}.{$extension}");
+                if (!$image->exists()) {
+                    $image->update([
+                        'ParentID' => Folder::find_or_make($owner->EmbedFolder)->ID,
+                        'OwnerID' => Security::getCurrentUser()?->ID,
+                        'ShowInSearch' => false,
+                    ]);
+                }
+                $image->write();
+                $owner->EmbedImageID = $image->ID;
+            } catch (Throwable $e) {
+                $log->error($e);
             }
         }
     }
 
-    /**
-     * @return array()|null
-     */
-    public function getAllowedEmbedTypes()
+    protected function fetchEmbedData(): array
     {
-        return $this->owner->config()->get('allowed_embed_types');
+        if (empty($this->embedData)) {
+            $this->embedData = $this->getFetcher()->fetchFrom($this->owner->EmbedSourceURL);
+        }
+        return $this->embedData;
     }
 
-    // TODO: This doesn't work with latest embed/embed
-    // /**
-    //  * @param  ValidationResult $validationResult
-    //  * @return ValidationResult
-    //  */
-    // public function validate(ValidationResult $validationResult)
-    // {
-    //     $owner = $this->owner;
-    //     $allowed_types = $owner->AllowedEmbedTypes;
-    //     $sourceURL = $owner->EmbedSourceURL;
-    //     if ($sourceURL && isset($allowed_types)) {
-    //         $embed = new Embed();
-    //         $embed = $embed->get($sourceURL);
-    //         if (!in_array($embed->Type, $allowed_types)) {
-    //             $string = implode(', ', $allowed_types);
-    //             $string = (substr($string, -1) == ',') ? substr_replace($string, ' or', -1) : $string;
-    //             $validationResult->addError(
-    //                 _t(__CLASS__ . '.ERRORNOTSTRING', "The embed content is not a $string")
-    //             );
-    //         }
-    //     }
-    //     return $validationResult;
-    // }
+    protected function fetchImageData(string $url): string
+    {
+        return file_get_contents($url);
+    }
+
+    /**
+     * @return array
+     */
+    public function getAllowedEmbedTypes(): array
+    {
+        return (array)$this->owner->config()->get('allowed_embed_types') ?? [];
+    }
+
+    /**
+     * @param  ValidationResult $validationResult
+     * @return ValidationResult
+     */
+    public function validate(ValidationResult $validationResult)
+    {
+        $owner = $this->owner;
+        $allowedTypes = $owner->AllowedEmbedTypes; // allows owner to override with its own getter
+        $sourceURL = $owner->EmbedSourceURL;
+        if (
+            (bool)$owner->config()->get('validate_embed')
+            && $owner->isChanged('EmbedSourceURL')
+            && $sourceURL
+            && is_array($allowedTypes)
+            && !empty($allowedTypes)
+            && !in_array($this->fetchEmbedData()['type'] ?? null, $allowedTypes)
+        ) {
+            $validationResult->addError(_t(
+                __CLASS__ . '.TYPEERROR',
+                "The embed type is not one of the allowed types: {allowed}",
+                ['allowed' => implode(', ', $allowedTypes)]
+            ));
+        }
+        return $validationResult;
+    }
 
     /**
      * @return string
@@ -345,6 +433,8 @@ class Embeddable extends DataExtension
                     'alt' => $title
                 ]);
                 break;
+            default:
+                return '';
         }
         return $html->setClass($class);
     }
@@ -359,7 +449,8 @@ class Embeddable extends DataExtension
      * @param string $sourceURL The source URL of the embed.
      * @return string Modified embed HTML.
      */
-    protected function addReferrerPolicyForVimeo($html, $sourceURL) {
+    protected function addReferrerPolicyForVimeo($html, $sourceURL)
+    {
         if (strpos($sourceURL, 'vimeo.com') !== false) {
             return str_replace('<iframe ', '<iframe referrerpolicy="strict-origin" ', $html);
         }

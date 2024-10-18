@@ -32,9 +32,9 @@ class Video extends Embed
      *
      * @var array
      */
-    private static $allowed_embed_types = array(
+    private static $allowed_embed_types = [
         'video'
-    );
+    ];
 
     /**
      * Defines upload folder for embedded assets
